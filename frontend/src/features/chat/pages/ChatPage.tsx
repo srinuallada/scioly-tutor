@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Box, Typography, Avatar, Chip, Paper, Tooltip } from '@mui/material'
 import ScienceIcon from '@mui/icons-material/Science'
 import QuizIcon from '@mui/icons-material/Quiz'
@@ -23,10 +23,25 @@ interface Props {
   materialCount: number
 }
 
+const STORAGE_KEY_PREFIX = 'scioly-chat-'
+
+function loadMessages(studentName: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PREFIX + studentName)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
 export default function ChatPage({ studentName, materialCount }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(studentName))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_PREFIX + studentName, JSON.stringify(messages))
+  }, [messages, studentName])
 
   const send = async (text?: string) => {
     const msg = text || input.trim()
@@ -76,7 +91,7 @@ export default function ChatPage({ studentName, materialCount }: Props) {
             size="small"
             label={`${messages.length} messages`}
             variant="outlined"
-            onClick={() => setMessages([])}
+            onClick={() => { setMessages([]); localStorage.removeItem(STORAGE_KEY_PREFIX + studentName) }}
             sx={{ fontSize: '0.7rem', height: 26, cursor: 'pointer', borderColor: '#cbd5e1' }}
           />
         </Tooltip>
@@ -116,7 +131,7 @@ export default function ChatPage({ studentName, materialCount }: Props) {
             </Box>
           </Box>
         ) : (
-          <ChatThread messages={messages} loading={loading} />
+          <ChatThread messages={messages} loading={loading} studentName={studentName} />
         )}
       </Box>
 

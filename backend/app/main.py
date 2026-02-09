@@ -5,10 +5,13 @@ Start: cd backend && uvicorn app.main:app --reload --port 8000
 Docs:  http://localhost:8000/docs
 """
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+log = logging.getLogger(__name__)
 
 from app.settings import UPLOAD_DIR, INDEX_DIR, CHUNKS_PATH
 from app.core.middleware import register_middleware
@@ -24,7 +27,7 @@ def _reload_search_index() -> None:
     if os.path.exists(chunks_path):
         search_engine.load_chunks(chunks_path)
     else:
-        print("No chunks found. Upload materials to get started.")
+        log.info("No chunks found. Upload materials to get started.")
 
 
 @asynccontextmanager

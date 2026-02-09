@@ -5,9 +5,10 @@ from dataclasses import asdict
 from pathlib import Path
 
 from app.core.security import is_allowed_file
+from app.core.errors import AppError
 from app.retrieval.processor import process_file, save_chunks
 from app.retrieval.search import StudySearch
-from app.settings import UPLOAD_DIR, CHUNKS_PATH
+from app.settings import UPLOAD_DIR, CHUNKS_PATH, MAX_UPLOAD_SIZE_MB
 
 
 async def handle_upload(
@@ -34,6 +35,12 @@ async def handle_upload(
 
         save_path = os.path.join(UPLOAD_DIR, file.filename)
         content = await file.read()
+
+        max_bytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if len(content) > max_bytes:
+            results.append({"filename": file.filename, "status": f"too_large (>{MAX_UPLOAD_SIZE_MB}MB)", "chunks": 0})
+            continue
+
         with open(save_path, "wb") as f:
             f.write(content)
 

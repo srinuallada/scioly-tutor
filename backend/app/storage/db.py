@@ -1,10 +1,13 @@
 """SQLite connection management."""
 
+import logging
 import os
 import sqlite3
 from contextlib import contextmanager
 
 from app.settings import DB_PATH
+
+log = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -49,4 +52,4 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_chat_student
                 ON chat_history(student_name);
         """)
-    print(f"Database initialized: {DB_PATH}")
+    log.info("Database initialized: %s", DB_PATH)

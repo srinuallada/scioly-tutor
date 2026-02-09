@@ -4,8 +4,12 @@ Free, local, no embeddings needed.
 """
 
 import json
-import re
+import logging
 from rank_bm25 import BM25Okapi
+
+from app.retrieval.index.tokenizer import tokenize
+
+log = logging.getLogger(__name__)
 
 
 class StudySearch:
@@ -16,29 +20,23 @@ class StudySearch:
         self.bm25: BM25Okapi | None = None
         self._tokenized: list[list[str]] = []
 
-    def _tokenize(self, text: str) -> list[str]:
-        """Tokenize text for search. Keeps scientific terms intact."""
-        text = text.lower()
-        tokens = re.findall(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?', text)
-        return [t for t in tokens if len(t) > 1]
-
     def load_chunks(self, chunks_path: str) -> None:
         """Load chunks from JSON and build the search index."""
         with open(chunks_path, "r") as f:
             self.chunks = json.load(f)
 
         self._tokenized = [
-            self._tokenize(f"{c['section_title']} {c['content']}")
+            tokenize(f"{c['section_title']} {c['content']}")
             for c in self.chunks
         ]
         self.bm25 = BM25Okapi(self._tokenized)
-        print(f"Index built: {len(self.chunks)} chunks")
+        log.info("Index built: %d chunks", len(self.chunks))
 
     def load_chunks_from_list(self, chunks: list[dict]) -> None:
         """Build index from an in-memory list of chunk dicts."""
         self.chunks = chunks
         self._tokenized = [
-            self._tokenize(f"{c['section_title']} {c['content']}")
+            tokenize(f"{c['section_title']} {c['content']}")
             for c in self.chunks
         ]
         self.bm25 = BM25Okapi(self._tokenized) if self._tokenized else None
@@ -48,7 +46,7 @@ class StudySearch:
         if not self.bm25 or not self.chunks:
             return []
 
-        tokenized_query = self._tokenize(query)
+        tokenized_query = tokenize(query)
         if not tokenized_query:
             return []
 

@@ -6,6 +6,8 @@ classify → search → prompt → LLM → postprocess
 from app.agent.classifier import classify_intent
 from app.agent.prompt_builder import build_prompt, build_messages
 from app.agent.post_processor import format_response
+from app.agent.policies import sanitize_user_message, sanitize_search_context
+from app.core.rate_limit import check_rate_limit
 from app.retrieval.search import StudySearch
 from app.llm.gemini_client import chat as gemini_chat
 from app.storage.chat_repo import save_chat_message
@@ -24,6 +26,10 @@ async def handle_chat(
 
     Returns dict with: response, intent, sources_used, topics_referenced, quiz_data
     """
+    # 0. Sanitize user input & check rate limit
+    message = sanitize_user_message(message)
+    check_rate_limit(student_name)
+
     # 1. Classify intent (free, instant)
     intent = classify_intent(message)
 
@@ -32,7 +38,7 @@ async def handle_chat(
         return _handle_topics(search_engine)
 
     # 3. Search for relevant material
-    search_context = search_engine.search_formatted(message, top_k=5)
+    search_context = sanitize_search_context(search_engine.search_formatted(message, top_k=5))
     search_results = search_engine.search(message, top_k=5)
     topics_found = list(set(r["section_title"] for r in search_results))
 

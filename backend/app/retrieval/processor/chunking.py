@@ -1,10 +1,13 @@
 """Main processor — routes files to the correct extractor."""
 
 import json
+import logging
 import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 from app.domain.documents import Chunk
 from app.retrieval.processor.extract_docx import extract_docx
@@ -32,15 +35,15 @@ def process_file(filepath: str) -> list[Chunk]:
     extractor = EXTRACTORS.get(ext)
 
     if not extractor:
-        print(f"  Unsupported: {ext} ({filepath})")
+        log.warning("Unsupported: %s (%s)", ext, filepath)
         return []
 
     try:
         chunks = extractor(filepath)
-        print(f"  {Path(filepath).name}: {len(chunks)} chunks")
+        log.info("%s: %d chunks", Path(filepath).name, len(chunks))
         return chunks
     except Exception as e:
-        print(f"  Error {filepath}: {e}")
+        log.error("Error processing %s: %s", filepath, e)
         return []
 
 
@@ -50,20 +53,20 @@ def process_directory(directory: str) -> list[Chunk]:
     dir_path = Path(directory)
 
     if not dir_path.exists():
-        print(f"Directory not found: {directory}")
+        log.error("Directory not found: %s", directory)
         return []
 
     supported_files = []
     for ext in EXTRACTORS:
         supported_files.extend(dir_path.rglob(f"*{ext}"))
 
-    print(f"\nFound {len(supported_files)} files in {directory}\n")
+    log.info("Found %d files in %s", len(supported_files), directory)
 
     for filepath in sorted(supported_files):
         chunks = process_file(str(filepath))
         all_chunks.extend(chunks)
 
-    print(f"\nTotal: {len(all_chunks)} chunks, {sum(c.word_count for c in all_chunks):,} words")
+    log.info("Total: %d chunks, %d words", len(all_chunks), sum(c.word_count for c in all_chunks))
     return all_chunks
 
 
@@ -73,7 +76,7 @@ def save_chunks(chunks: list[Chunk], output_path: str) -> None:
     data = [asdict(c) for c in chunks]
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
-    print(f"Saved {len(chunks)} chunks to {output_path}")
+    log.info("Saved %d chunks to %s", len(chunks), output_path)
 
 
 def load_chunks(input_path: str) -> list[dict]:
