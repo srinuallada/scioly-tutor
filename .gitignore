@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Build output
+frontend/dist/
+backend/app/data/uploads/*
+backend/app/data/index/*
+backend/app/data/app.db
+!backend/app/data/.gitkeep
+!backend/app/data/uploads/.gitkeep
+!backend/app/data/index/.gitkeep
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
