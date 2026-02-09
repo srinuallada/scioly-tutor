@@ -153,7 +153,7 @@ export default function App() {
       <Box className="flex-1 flex flex-col overflow-hidden">
         {tab === 0 && <ChatPage studentName={studentName} materialCount={materialCount} />}
         {tab === 1 && <MaterialsPage onUploadComplete={refreshMaterials} />}
-        {tab === 2 && <QuizPage />}
+        {tab === 2 && <QuizPage studentName={studentName} />}
         {tab === 3 && <ProgressPage studentName={studentName} />}
       </Box>
     </Box>
