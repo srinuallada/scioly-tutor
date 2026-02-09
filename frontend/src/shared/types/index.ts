@@ -86,3 +86,37 @@ export interface RecentActivity {
   is_correct: boolean
   timestamp: string
 }
+
+export interface QuizGenerateRequest {
+  topic: string
+  student_name?: string
+}
+
+export interface QuizGenerateResponse {
+  question: string
+  options: string[]
+  correct_letter: string
+  explanation: string
+  topic: string
+}
+
+export interface StudyPlanResponse {
+  due_for_review: ReviewTopic[]
+  upcoming: UpcomingTopic[]
+  mastered_count: number
+  study_days_30d: number
+}
+
+export interface ReviewTopic {
+  topic: string
+  next_review: string
+  interval_days: number
+  repetitions: number
+  last_reviewed: string | null
+}
+
+export interface UpcomingTopic {
+  topic: string
+  next_review: string
+  interval_days: number
+}

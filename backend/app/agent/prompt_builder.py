@@ -82,22 +82,60 @@ def build_prompt(
     return "\n".join(parts)
 
 
+def _estimate_tokens(text: str) -> int:
+    """Estimate token count (~4 chars per token for English text)."""
+    return len(text) // 4
+
+
 def build_messages(
     user_message: str,
     conversation_history: list[dict],
     max_history: int = 10,
+    max_context_tokens: int = 4000,
 ) -> list[dict]:
     """
     Build the messages array for the LLM call.
 
-    Includes recent conversation history for multi-turn context.
+    Includes recent conversation history for multi-turn context,
+    with smart truncation to stay within a token budget.
+    Keeps the first user message for context grounding and prioritizes
+    the most recent messages.
     """
-    messages: list[dict] = []
+    valid_history = [
+        msg for msg in (conversation_history or [])
+        if msg.get("role") in ("user", "assistant") and msg.get("content")
+    ]
 
-    recent = conversation_history[-max_history:] if conversation_history else []
-    for msg in recent:
-        if msg.get("role") in ("user", "assistant") and msg.get("content"):
-            messages.append({"role": msg["role"], "content": msg["content"]})
+    # Reserve tokens for the current user message
+    current_tokens = _estimate_tokens(user_message)
+    remaining = max_context_tokens - current_tokens
 
-    messages.append({"role": "user", "content": user_message})
-    return messages
+    if remaining <= 0 or not valid_history:
+        return [{"role": "user", "content": user_message}]
+
+    # Take at most max_history messages
+    candidates = valid_history[-max_history:]
+
+    # Build from newest to oldest, respecting token budget
+    selected: list[dict] = []
+    used_tokens = 0
+    for msg in reversed(candidates):
+        msg_tokens = _estimate_tokens(msg["content"])
+        if used_tokens + msg_tokens > remaining:
+            break
+        selected.append({"role": msg["role"], "content": msg["content"]})
+        used_tokens += msg_tokens
+
+    # If we have room and the first message in history was cut off, include it
+    if selected and valid_history and len(selected) < len(candidates):
+        first_msg = candidates[0]
+        first_tokens = _estimate_tokens(first_msg["content"])
+        if used_tokens + first_tokens <= remaining:
+            if first_msg["content"] != selected[-1]["content"]:
+                selected.append({"role": first_msg["role"], "content": first_msg["content"]})
+
+    # Reverse back to chronological order
+    selected.reverse()
+
+    selected.append({"role": "user", "content": user_message})
+    return selected
