@@ -1,7 +1,10 @@
 from fastapi import APIRouter
 
-from app.api.schemas.quiz import QuizSubmission, QuizResult
-from app.services.quiz_service import submit_answer
+from app.api.schemas.quiz import (
+    QuizSubmission, QuizResult, QuizGenerateRequest, QuizGenerateResponse,
+)
+from app.api.deps import search_engine
+from app.services.quiz_service import submit_answer, generate_quiz
 
 router = APIRouter()
 
@@ -17,3 +20,13 @@ async def submit_quiz(submission: QuizSubmission):
         correct_answer=submission.correct_answer,
     )
     return QuizResult(**result)
+
+
+@router.post("/quiz/generate", response_model=QuizGenerateResponse)
+async def generate_quiz_endpoint(request: QuizGenerateRequest):
+    """Generate a quiz question for a specific topic."""
+    result = await generate_quiz(
+        topic=request.topic,
+        search_engine=search_engine,
+    )
+    return QuizGenerateResponse(**result)

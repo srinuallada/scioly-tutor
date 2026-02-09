@@ -47,9 +47,23 @@ def init_db() -> None:
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS study_schedule (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_name TEXT DEFAULT 'default',
+                topic TEXT NOT NULL,
+                ease_factor REAL DEFAULT 2.5,
+                interval_days INTEGER DEFAULT 1,
+                repetitions INTEGER DEFAULT 0,
+                next_review TEXT NOT NULL,
+                last_reviewed TEXT,
+                UNIQUE(student_name, topic)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_quiz_student
                 ON quiz_results(student_name);
             CREATE INDEX IF NOT EXISTS idx_chat_student
                 ON chat_history(student_name);
+            CREATE INDEX IF NOT EXISTS idx_schedule_student
+                ON study_schedule(student_name);
         """)
     log.info("Database initialized: %s", DB_PATH)

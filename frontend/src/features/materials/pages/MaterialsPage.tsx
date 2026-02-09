@@ -4,6 +4,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import CategoryIcon from '@mui/icons-material/Category'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import UploadPanel from '../components/UploadPanel'
+import SearchPanel from '../components/SearchPanel'
 import { uploadFiles } from '../../../lib/api/upload'
 import { getTopics } from '../../../lib/api/topics'
 import type { TopicsResponse, UploadResult } from '../../../shared/types'
@@ -51,6 +52,7 @@ export default function MaterialsPage({ onUploadComplete }: Props) {
 
       <Box className="flex-1 overflow-y-auto p-6">
         <Box className="max-w-2xl mx-auto space-y-6">
+          <SearchPanel />
           <UploadPanel onUpload={handleUpload} uploading={uploading} />
 
           {result && (
