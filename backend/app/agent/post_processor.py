@@ -34,7 +34,7 @@ def _extract_quiz_data(text: str) -> dict | None:
                 options.append(match.group(1).strip())
 
         answer_match = re.search(
-            r"(?:correct answer|answer)[:\s]*([A-D])", text, re.IGNORECASE
+            r"(?:correct answer|answer)\s*(?:is|:)?\s*([A-D])", text, re.IGNORECASE
         )
 
         if options and answer_match:

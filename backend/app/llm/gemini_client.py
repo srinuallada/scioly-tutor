@@ -85,3 +85,50 @@ async def chat(
                 "Get a free key at https://aistudio.google.com/apikey"
             )
         return f"Error from Gemini: {error_msg}"
+
+
+def chat_stream(
+    messages: list[dict],
+    system_prompt: str,
+    model: str | None = None,
+    max_tokens: int = 2048,
+    temperature: float = 0.7,
+):
+    """
+    Stream a chat response from Gemini, yielding text chunks.
+
+    Yields str chunks as they arrive from the model.
+    """
+    client = _get_client()
+    model_name = model or GEMINI_MODEL
+
+    contents = []
+    for msg in messages:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append(
+            types.Content(
+                role=role,
+                parts=[types.Part(text=msg["content"])],
+            )
+        )
+
+    try:
+        for chunk in client.models.generate_content_stream(
+            model=model_name,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=max_tokens,
+                temperature=temperature,
+            ),
+        ):
+            if chunk.text:
+                yield chunk.text
+    except Exception as e:
+        error_msg = str(e)
+        if "quota" in error_msg.lower() or "429" in error_msg:
+            yield "Hit the daily API limit (1,000 req/day). Try again tomorrow."
+        elif "api_key" in error_msg.lower() or "401" in error_msg:
+            yield "Invalid API key. Check your GEMINI_API_KEY in .env."
+        else:
+            yield f"Error from Gemini: {error_msg}"

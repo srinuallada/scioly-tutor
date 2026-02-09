@@ -1,8 +1,9 @@
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from app.api.schemas.chat import ChatRequest, ChatResponse
 from app.api.deps import search_engine
-from app.services.chat_service import handle_chat
+from app.services.chat_service import handle_chat, handle_chat_stream
 
 router = APIRouter()
 
@@ -17,3 +18,18 @@ async def chat_endpoint(request: ChatRequest):
         search_engine=search_engine,
     )
     return ChatResponse(**result)
+
+
+@router.post("/chat/stream")
+async def chat_stream_endpoint(request: ChatRequest):
+    """Streaming chat endpoint — returns SSE events as tokens arrive."""
+    return StreamingResponse(
+        handle_chat_stream(
+            message=request.message,
+            student_name=request.student_name,
+            conversation_history=request.conversation_history,
+            search_engine=search_engine,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

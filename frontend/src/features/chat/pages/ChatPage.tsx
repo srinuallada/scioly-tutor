@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Box, Typography, Avatar, Chip, Paper, Tooltip } from '@mui/material'
 import ScienceIcon from '@mui/icons-material/Science'
 import QuizIcon from '@mui/icons-material/Quiz'
@@ -8,7 +8,7 @@ import SchoolIcon from '@mui/icons-material/School'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import ChatThread from '../components/ChatThread'
 import ChatComposer from '../components/ChatComposer'
-import { sendMessage } from '../../../lib/api/chat'
+import { sendMessageStream } from '../../../lib/api/chatStream'
 import type { ChatMessage } from '../../../shared/types'
 
 const QUICK_PROMPTS = [
@@ -38,6 +38,12 @@ export default function ChatPage({ studentName, materialCount }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(studentName))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const streamTextRef = useRef('')
+
+  // Reload messages when student changes
+  useEffect(() => {
+    setMessages(loadMessages(studentName))
+  }, [studentName])
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_PREFIX + studentName, JSON.stringify(messages))
@@ -50,30 +56,88 @@ export default function ChatPage({ studentName, materialCount }: Props) {
     setInput('')
     setMessages((prev) => [...prev, { role: 'user', content: msg }])
     setLoading(true)
+    streamTextRef.current = ''
+
+    // Add placeholder assistant message for streaming
+    const placeholderMsg: ChatMessage = { role: 'assistant', content: '' }
+    setMessages((prev) => [...prev, placeholderMsg])
 
     try {
       const history = messages.map(({ role, content }) => ({ role, content }))
-      const res = await sendMessage(msg, studentName, history)
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: res.response,
-          intent: res.intent,
-          sources_used: res.sources_used,
-          topics_referenced: res.topics_referenced,
-          quiz_data: res.quiz_data,
+      let streamIntent = ''
+      let streamSources = 0
+      let streamTopics: string[] = []
+
+      await sendMessageStream(msg, studentName, history, {
+        onMeta: (meta) => {
+          streamIntent = meta.intent
+          streamSources = meta.sources_used
+          streamTopics = meta.topics_referenced
+          // Update the placeholder with metadata
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              intent: meta.intent,
+              sources_used: meta.sources_used,
+              topics_referenced: meta.topics_referenced,
+            }
+            return updated
+          })
         },
-      ])
+        onToken: (token) => {
+          streamTextRef.current += token
+          const currentText = streamTextRef.current
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: currentText,
+            }
+            return updated
+          })
+        },
+        onDone: (quizData) => {
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              quiz_data: quizData,
+            }
+            return updated
+          })
+        },
+        onError: (error) => {
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              role: 'assistant',
+              content: `Sorry, I ran into an error: ${error}. Make sure the backend is running on port 8000.`,
+              intent: 'error',
+            }
+            return updated
+          })
+        },
+      })
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error'
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `Sorry, I ran into an error: ${errMsg}. Make sure the backend is running on port 8000.`, intent: 'error' },
-      ])
+      setMessages((prev) => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          role: 'assistant',
+          content: `Sorry, I ran into an error: ${errMsg}. Make sure the backend is running on port 8000.`,
+          intent: 'error',
+        }
+        return updated
+      })
     } finally {
       setLoading(false)
     }
+  }
+
+  const clearChat = () => {
+    setMessages([])
+    localStorage.removeItem(STORAGE_KEY_PREFIX + studentName)
   }
 
   const isEmpty = messages.length === 0
@@ -91,7 +155,7 @@ export default function ChatPage({ studentName, materialCount }: Props) {
             size="small"
             label={`${messages.length} messages`}
             variant="outlined"
-            onClick={() => { setMessages([]); localStorage.removeItem(STORAGE_KEY_PREFIX + studentName) }}
+            onClick={clearChat}
             sx={{ fontSize: '0.7rem', height: 26, cursor: 'pointer', borderColor: '#cbd5e1' }}
           />
         </Tooltip>
