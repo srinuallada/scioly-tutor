@@ -13,7 +13,12 @@ export default function StatCard({ icon, label, value, subtitle, color = '#2563e
   return (
     <Paper
       elevation={0}
-      sx={{ p: 2.5, border: '1px solid #e2e8f0', borderRadius: '12px', flex: 1, minWidth: 140 }}
+      sx={{
+        p: 2.5, border: '1px solid #e2e8f0', borderRadius: '12px', flex: 1, minWidth: 140,
+        boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
+        transition: 'all 0.2s',
+        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(15,23,42,0.08)' },
+      }}
     >
       <Box className="flex items-center gap-2 mb-2">
         <Box

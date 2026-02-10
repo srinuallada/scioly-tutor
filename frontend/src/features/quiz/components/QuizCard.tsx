@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Typography, Paper, Button, Chip } from '@mui/material'
+import { Box, Typography, Paper, Button, Chip, Fade, Collapse } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
 
@@ -25,9 +25,10 @@ export default function QuizCard({ question, options, correctLetter, topic, onAn
   }
 
   return (
+    <Fade in timeout={400}>
     <Paper
       elevation={0}
-      sx={{ border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}
+      sx={{ border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}
     >
       <Box className="px-5 py-4" sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
         {topic && (
@@ -70,13 +71,21 @@ export default function QuizCard({ question, options, correctLetter, topic, onAn
         })}
       </Box>
 
-      {answered && (
-        <Box className="px-5 py-3" sx={{ bgcolor: selected === correctLetter ? '#f0fdf4' : '#fef2f2', borderTop: '1px solid #e2e8f0' }}>
+      <Collapse in={answered}>
+        <Box
+          className={`px-5 py-3 ${answered && selected !== correctLetter ? 'quiz-shake' : ''}`}
+          sx={{
+            bgcolor: selected === correctLetter ? '#f0fdf4' : '#fef2f2',
+            borderTop: '1px solid #e2e8f0',
+            ...(selected === correctLetter && { boxShadow: 'inset 0 0 0 1px #bbf7d0' }),
+          }}
+        >
           <Typography variant="body2" sx={{ fontWeight: 600, color: selected === correctLetter ? '#16a34a' : '#dc2626' }}>
             {selected === correctLetter ? 'Correct!' : `Incorrect — the answer is ${correctLetter}`}
           </Typography>
         </Box>
-      )}
+      </Collapse>
     </Paper>
+    </Fade>
   )
 }

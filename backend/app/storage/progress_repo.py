@@ -4,6 +4,7 @@ from app.storage.db import get_db
 
 
 def save_quiz_result(
+    student_id: str,
     student_name: str,
     topic: str,
     question: str,
@@ -15,20 +16,20 @@ def save_quiz_result(
     with get_db() as conn:
         conn.execute(
             """INSERT INTO quiz_results
-               (student_name, topic, question, student_answer, correct_answer, is_correct)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (student_name, topic, question, student_answer, correct_answer, is_correct),
+               (student_id, student_name, topic, question, student_answer, correct_answer, is_correct)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (student_id, student_name, topic, question, student_answer, correct_answer, is_correct),
         )
 
 
-def get_progress(student_name: str = "default") -> dict:
+def get_progress(student_id: str = "default") -> dict:
     """Get study progress and weak areas for a student."""
     with get_db() as conn:
         overall = conn.execute(
             """SELECT COUNT(*) as total,
                       SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct
-               FROM quiz_results WHERE student_name = ?""",
-            (student_name,),
+               FROM quiz_results WHERE student_id = ?""",
+            (student_id,),
         ).fetchone()
 
         total = overall["total"] or 0
@@ -39,18 +40,18 @@ def get_progress(student_name: str = "default") -> dict:
                       COUNT(*) as total,
                       SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct
                FROM quiz_results
-               WHERE student_name = ?
+               WHERE student_id = ?
                GROUP BY topic
                ORDER BY (CAST(SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*))""",
-            (student_name,),
+            (student_id,),
         ).fetchall()
 
         recent = conn.execute(
             """SELECT topic, question, is_correct, timestamp
                FROM quiz_results
-               WHERE student_name = ?
+               WHERE student_id = ?
                ORDER BY timestamp DESC LIMIT 20""",
-            (student_name,),
+            (student_id,),
         ).fetchall()
 
         topics = []
@@ -67,7 +68,7 @@ def get_progress(student_name: str = "default") -> dict:
                 weak_areas.append(row["topic"])
 
         return {
-            "student_name": student_name,
+            "student_id": student_id,
             "overall": {
                 "total_questions": total,
                 "correct": correct,
@@ -79,7 +80,7 @@ def get_progress(student_name: str = "default") -> dict:
         }
 
 
-def get_weak_areas(student_name: str = "default") -> list[str]:
+def get_weak_areas(student_id: str = "default") -> list[str]:
     """Get list of weak topic areas (< 70% accuracy)."""
-    progress = get_progress(student_name)
+    progress = get_progress(student_id)
     return progress["weak_areas"]

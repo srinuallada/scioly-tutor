@@ -13,15 +13,20 @@ class HttpError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE}${path}`
+  const token = localStorage.getItem('google_id_token')
   const res = await fetch(url, {
     ...options,
     headers: {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   })
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('google_id_token')
+    }
     const body = await res.json().catch(() => ({ detail: `Request failed (${res.status})` }))
     throw new HttpError(body.detail || `HTTP ${res.status}`, res.status)
   }

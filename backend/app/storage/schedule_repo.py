@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from app.storage.db import get_db
 
 
-def update_schedule(student_name: str, topic: str, is_correct: bool) -> None:
+def update_schedule(student_id: str, student_name: str, topic: str, is_correct: bool) -> None:
     """
     Update the review schedule for a topic after a quiz answer.
 
@@ -16,8 +16,8 @@ def update_schedule(student_name: str, topic: str, is_correct: bool) -> None:
     with get_db() as conn:
         row = conn.execute(
             "SELECT ease_factor, interval_days, repetitions FROM study_schedule "
-            "WHERE student_name = ? AND topic = ?",
-            (student_name, topic),
+            "WHERE student_id = ? AND topic = ?",
+            (student_id, topic),
         ).fetchone()
 
         today = date.today().isoformat()
@@ -49,16 +49,16 @@ def update_schedule(student_name: str, topic: str, is_correct: bool) -> None:
 
         conn.execute(
             """INSERT INTO study_schedule
-               (student_name, topic, ease_factor, interval_days, repetitions, next_review, last_reviewed)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(student_name, topic)
+               (student_id, student_name, topic, ease_factor, interval_days, repetitions, next_review, last_reviewed)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(student_id, topic)
                DO UPDATE SET ease_factor=?, interval_days=?, repetitions=?, next_review=?, last_reviewed=?""",
-            (student_name, topic, ease, interval, reps, next_review, today,
+            (student_id, student_name, topic, ease, interval, reps, next_review, today,
              ease, interval, reps, next_review, today),
         )
 
 
-def get_study_plan(student_name: str) -> dict:
+def get_study_plan(student_id: str) -> dict:
     """
     Get the study plan for a student.
 
@@ -70,30 +70,30 @@ def get_study_plan(student_name: str) -> dict:
         due = conn.execute(
             """SELECT topic, next_review, interval_days, repetitions, last_reviewed
                FROM study_schedule
-               WHERE student_name = ? AND next_review <= ?
+               WHERE student_id = ? AND next_review <= ?
                ORDER BY next_review ASC""",
-            (student_name, today),
+            (student_id, today),
         ).fetchall()
 
         upcoming = conn.execute(
             """SELECT topic, next_review, interval_days, repetitions
                FROM study_schedule
-               WHERE student_name = ? AND next_review > ?
+               WHERE student_id = ? AND next_review > ?
                ORDER BY next_review ASC LIMIT 10""",
-            (student_name, today),
+            (student_id, today),
         ).fetchall()
 
         mastered = conn.execute(
             """SELECT COUNT(*) as count FROM study_schedule
-               WHERE student_name = ? AND interval_days >= 14""",
-            (student_name,),
+               WHERE student_id = ? AND interval_days >= 14""",
+            (student_id,),
         ).fetchone()
 
         streak = conn.execute(
             """SELECT COUNT(DISTINCT date(timestamp)) as days
                FROM quiz_results
-               WHERE student_name = ? AND timestamp >= date('now', '-30 days')""",
-            (student_name,),
+               WHERE student_id = ? AND timestamp >= date('now', '-30 days')""",
+            (student_id,),
         ).fetchone()
 
     return {

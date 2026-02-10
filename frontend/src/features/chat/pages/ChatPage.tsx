@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { Box, Typography, Avatar, Chip, Paper, Tooltip } from '@mui/material'
+import {
+  Box, Typography, Avatar, Paper, Tooltip, Button, Dialog, DialogTitle,
+  DialogContent, DialogContentText, DialogActions, ButtonBase,
+} from '@mui/material'
 import ScienceIcon from '@mui/icons-material/Science'
 import QuizIcon from '@mui/icons-material/Quiz'
 import SummarizeIcon from '@mui/icons-material/Summarize'
 import PsychologyIcon from '@mui/icons-material/Psychology'
 import SchoolIcon from '@mui/icons-material/School'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import ChatThread from '../components/ChatThread'
 import ChatComposer from '../components/ChatComposer'
 import { sendMessageStream } from '../../../lib/api/chatStream'
@@ -38,7 +43,10 @@ export default function ChatPage({ studentName, materialCount }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(studentName))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
   const streamTextRef = useRef('')
+  const streamBufferRef = useRef('')
+  const flushTimerRef = useRef<number | null>(null)
 
   // Reload messages when student changes
   useEffect(() => {
@@ -49,6 +57,16 @@ export default function ChatPage({ studentName, materialCount }: Props) {
     localStorage.setItem(STORAGE_KEY_PREFIX + studentName, JSON.stringify(messages))
   }, [messages, studentName])
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ studentName?: string }>
+      if (custom.detail?.studentName && custom.detail.studentName !== studentName) return
+      setMessages([])
+    }
+    window.addEventListener('scioly-clear-chat', handler as EventListener)
+    return () => window.removeEventListener('scioly-clear-chat', handler as EventListener)
+  }, [studentName])
+
   const send = async (text?: string) => {
     const msg = text || input.trim()
     if (!msg || loading) return
@@ -57,6 +75,11 @@ export default function ChatPage({ studentName, materialCount }: Props) {
     setMessages((prev) => [...prev, { role: 'user', content: msg }])
     setLoading(true)
     streamTextRef.current = ''
+    streamBufferRef.current = ''
+    if (flushTimerRef.current) {
+      window.clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
 
     // Add placeholder assistant message for streaming
     const placeholderMsg: ChatMessage = { role: 'assistant', content: '' }
@@ -81,23 +104,46 @@ export default function ChatPage({ studentName, materialCount }: Props) {
               intent: meta.intent,
               sources_used: meta.sources_used,
               topics_referenced: meta.topics_referenced,
+              source_details: meta.source_details,
             }
             return updated
           })
         },
         onToken: (token) => {
           streamTextRef.current += token
-          const currentText = streamTextRef.current
-          setMessages((prev) => {
-            const updated = [...prev]
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: currentText,
-            }
-            return updated
-          })
+          streamBufferRef.current += token
+          if (flushTimerRef.current) return
+          flushTimerRef.current = window.setTimeout(() => {
+            const currentText = streamTextRef.current
+            setMessages((prev) => {
+              const updated = [...prev]
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: currentText,
+              }
+              return updated
+            })
+            streamBufferRef.current = ''
+            flushTimerRef.current = null
+          }, 80)
         },
         onDone: (quizData) => {
+          if (flushTimerRef.current) {
+            window.clearTimeout(flushTimerRef.current)
+            flushTimerRef.current = null
+          }
+          if (streamBufferRef.current) {
+            const currentText = streamTextRef.current
+            setMessages((prev) => {
+              const updated = [...prev]
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: currentText,
+              }
+              return updated
+            })
+            streamBufferRef.current = ''
+          }
           setMessages((prev) => {
             const updated = [...prev]
             updated[updated.length - 1] = {
@@ -108,11 +154,15 @@ export default function ChatPage({ studentName, materialCount }: Props) {
           })
         },
         onError: (error) => {
+          const authError = error.toLowerCase().includes('unauthorized') || error.includes('401')
+          const message = authError
+            ? 'Your session expired. Please sign in again.'
+            : `Sorry, I ran into an error: ${error}. If this keeps happening, check your connection or the backend.`
           setMessages((prev) => {
             const updated = [...prev]
             updated[updated.length - 1] = {
               role: 'assistant',
-              content: `Sorry, I ran into an error: ${error}. Make sure the backend is running on port 8000.`,
+              content: message,
               intent: 'error',
             }
             return updated
@@ -121,16 +171,25 @@ export default function ChatPage({ studentName, materialCount }: Props) {
       })
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error'
+      const authError = errMsg.toLowerCase().includes('unauthorized') || errMsg.includes('401')
+      const message = authError
+        ? 'Your session expired. Please sign in again.'
+        : `Sorry, I ran into an error: ${errMsg}. If this keeps happening, check your connection or the backend.`
       setMessages((prev) => {
         const updated = [...prev]
         updated[updated.length - 1] = {
           role: 'assistant',
-          content: `Sorry, I ran into an error: ${errMsg}. Make sure the backend is running on port 8000.`,
+          content: message,
           intent: 'error',
         }
         return updated
       })
     } finally {
+      if (flushTimerRef.current) {
+        window.clearTimeout(flushTimerRef.current)
+        flushTimerRef.current = null
+      }
+      streamBufferRef.current = ''
       setLoading(false)
     }
   }
@@ -143,26 +202,35 @@ export default function ChatPage({ studentName, materialCount }: Props) {
   const isEmpty = messages.length === 0
 
   return (
-    <Box className="flex flex-col h-full">
+    <Box className="flex flex-col h-full" sx={{ minHeight: 0 }}>
       {/* Header */}
-      <Box className="flex items-center justify-between px-6 py-3" sx={{ borderBottom: '1px solid #e2e8f0', bgcolor: 'white' }}>
+      <Box className="flex items-center justify-between px-6 py-3" sx={{ bgcolor: 'white' }}>
         <Box className="flex items-center gap-2">
           <AutoAwesomeIcon sx={{ color: '#2563eb', fontSize: 20 }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#0f172a' }}>Study Chat</Typography>
         </Box>
-        <Tooltip title="Clear chat">
-          <Chip
+        <Tooltip title="Clear chat history">
+          <Button
             size="small"
-            label={`${messages.length} messages`}
             variant="outlined"
-            onClick={clearChat}
-            sx={{ fontSize: '0.7rem', height: 26, cursor: 'pointer', borderColor: '#cbd5e1' }}
-          />
+            startIcon={<DeleteOutlineIcon />}
+            onClick={() => setClearOpen(true)}
+            sx={{ fontSize: '0.7rem', height: 28, borderColor: '#cbd5e1', textTransform: 'none' }}
+          >
+            Clear ({messages.length})
+          </Button>
         </Tooltip>
       </Box>
 
       {/* Messages */}
-      <Box className="flex-1 overflow-y-auto" sx={{ bgcolor: '#f8fafc' }}>
+      <Box
+        className="flex-1 overflow-hidden"
+        sx={{
+          bgcolor: 'transparent',
+          minHeight: 0,
+          background: 'radial-gradient(circle at 30% 20%, #f8fafc 0%, #ffffff 55%)',
+        }}
+      >
         {isEmpty ? (
           <Box className="flex flex-col items-center justify-center h-full px-6">
             <Avatar sx={{ bgcolor: '#eff6ff', width: 64, height: 64, mb: 3 }}>
@@ -176,21 +244,26 @@ export default function ChatPage({ studentName, materialCount }: Props) {
             </Typography>
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
               {QUICK_PROMPTS.map((p, i) => (
-                <Paper
+                <ButtonBase
                   key={i}
                   onClick={() => send(p.text)}
+                  component={Paper}
                   elevation={0}
+                  role="button"
                   sx={{
                     p: 2, cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: '12px',
+                    borderLeft: `3px solid ${p.color}`,
                     transition: 'all 0.2s',
+                    display: 'flex', alignItems: 'center', gap: 1.5, textAlign: 'left',
+                    boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
                     '&:hover': { borderColor: p.color, transform: 'translateY(-2px)', boxShadow: `0 4px 12px ${p.color}20` },
+                    '&:hover .arrow-icon': { opacity: 1, transform: 'translateX(0)' },
                   }}
                 >
-                  <Box className="flex items-center gap-2 mb-1">
-                    <Box sx={{ color: p.color }}>{p.icon}</Box>
-                  </Box>
-                  <Typography variant="body2" sx={{ color: '#334155', fontSize: '0.825rem', fontWeight: 500 }}>{p.text}</Typography>
-                </Paper>
+                  <Box sx={{ color: p.color, flexShrink: 0 }}>{p.icon}</Box>
+                  <Typography variant="body2" sx={{ color: '#334155', fontSize: '0.825rem', fontWeight: 500, flex: 1 }}>{p.text}</Typography>
+                  <ArrowForwardIcon className="arrow-icon" sx={{ fontSize: 16, color: p.color, opacity: 0, transform: 'translateX(-4px)', transition: 'all 0.2s' }} />
+                </ButtonBase>
               ))}
             </Box>
           </Box>
@@ -201,6 +274,26 @@ export default function ChatPage({ studentName, materialCount }: Props) {
 
       {/* Composer */}
       <ChatComposer value={input} onChange={setInput} onSend={() => send()} disabled={loading} />
+
+      <Dialog open={clearOpen} onClose={() => setClearOpen(false)}>
+        <DialogTitle>Clear chat history?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will remove all messages for this student. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button
+            onClick={() => { clearChat(); setClearOpen(false) }}
+            variant="contained"
+            color="error"
+            sx={{ textTransform: 'none' }}
+          >
+            Clear Chat
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

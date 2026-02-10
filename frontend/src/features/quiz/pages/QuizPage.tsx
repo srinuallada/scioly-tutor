@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Box, Typography, Button, Select, MenuItem, FormControl, InputLabel,
-  CircularProgress, Alert, Paper, Chip, Divider,
+  CircularProgress, Alert, Paper, Chip, Divider, LinearProgress,
 } from '@mui/material'
 import QuizIcon from '@mui/icons-material/Quiz'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
@@ -19,31 +19,43 @@ interface Props {
 interface SessionStats {
   total: number
   correct: number
+  streak: number
 }
 
 export default function QuizPage({ studentName = 'default' }: Props) {
   const [topics, setTopics] = useState<string[]>([])
-  const [selectedTopic, setSelectedTopic] = useState('')
+  const [selectedParent, setSelectedParent] = useState('')
+  const [selectedChild, setSelectedChild] = useState('')
   const [quiz, setQuiz] = useState<QuizGenerateResponse | null>(null)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [answered, setAnswered] = useState(false)
-  const [session, setSession] = useState<SessionStats>({ total: 0, correct: 0 })
+  const [session, setSession] = useState<SessionStats>({ total: 0, correct: 0, streak: 0 })
+  const [showStreak, setShowStreak] = useState(false)
 
   useEffect(() => {
     getTopics().then((res) => {
-      const uniqueTopics = [...new Set(
-        res.topics.map((t: string) => {
-          const parts = t.split(' → ')
-          return parts.length > 1 ? parts[1] : parts[0]
-        })
-      )].sort()
+      const uniqueTopics = [...new Set(res.topics)].sort()
       setTopics(uniqueTopics as string[])
     }).catch(() => {})
   }, [])
 
+  const parents = Array.from(new Set(
+    topics.map((t) => t.split(' → ')[0])
+  )).sort()
+
+  const children = selectedParent
+    ? topics
+      .filter((t) => t.startsWith(`${selectedParent} → `))
+      .map((t) => t.split(' → ')[1])
+      .filter(Boolean)
+      .sort()
+    : []
+
   const handleGenerate = async () => {
-    const topic = selectedTopic || 'random science topic'
+    const topic = selectedChild
+      ? `${selectedParent} → ${selectedChild}`
+      : selectedParent || 'random science topic'
     setGenerating(true)
     setError(null)
     setQuiz(null)
@@ -64,7 +76,12 @@ export default function QuizPage({ studentName = 'default' }: Props) {
 
   const handleAnswer = (letter: string, isCorrect: boolean) => {
     setAnswered(true)
-    setSession((s) => ({ total: s.total + 1, correct: s.correct + (isCorrect ? 1 : 0) }))
+    const newStreak = isCorrect ? session.streak + 1 : 0
+    setSession((s) => ({ total: s.total + 1, correct: s.correct + (isCorrect ? 1 : 0), streak: newStreak }))
+    if (isCorrect && newStreak > 0 && newStreak % 3 === 0) {
+      setShowStreak(true)
+      setTimeout(() => setShowStreak(false), 2500)
+    }
     if (quiz) {
       submitQuiz({
         question: quiz.question,
@@ -92,28 +109,61 @@ export default function QuizPage({ studentName = 'default' }: Props) {
           </Box>
         )}
       </Box>
+      {session.total > 0 && (
+        <LinearProgress
+          variant="determinate"
+          value={accuracy}
+          sx={{
+            height: 4,
+            bgcolor: '#f1f5f9',
+            '& .MuiLinearProgress-bar': {
+              bgcolor: accuracy >= 70 ? '#16a34a' : accuracy >= 40 ? '#f59e0b' : '#dc2626',
+              transition: 'width 0.5s ease',
+            },
+          }}
+        />
+      )}
 
       <Box className="flex-1 overflow-y-auto p-6">
         <Box className="max-w-2xl mx-auto space-y-5">
           {/* Topic selector + generate */}
-          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <Box className="px-4 py-3" sx={{ bgcolor: '#f8fafc' }}>
               <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>Generate a Quiz Question</Typography>
             </Box>
             <Divider />
             <Box className="p-4 flex flex-col gap-3">
               <FormControl size="small" fullWidth>
-                <InputLabel>Topic (optional)</InputLabel>
+                <InputLabel>Event</InputLabel>
                 <Select
-                  value={selectedTopic}
-                  label="Topic (optional)"
-                  onChange={(e) => setSelectedTopic(e.target.value)}
+                  value={selectedParent}
+                  label="Event"
+                  onChange={(e) => {
+                    setSelectedParent(e.target.value)
+                    setSelectedChild('')
+                  }}
                   sx={{ borderRadius: '10px', fontSize: '0.875rem' }}
                 >
                   <MenuItem value="">
-                    <em>Random topic</em>
+                    <em>Any event</em>
                   </MenuItem>
-                  {topics.map((t) => (
+                  {parents.map((t) => (
+                    <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" fullWidth disabled={!selectedParent}>
+                <InputLabel>Subtopic</InputLabel>
+                <Select
+                  value={selectedChild}
+                  label="Subtopic"
+                  onChange={(e) => setSelectedChild(e.target.value)}
+                  sx={{ borderRadius: '10px', fontSize: '0.875rem' }}
+                >
+                  <MenuItem value="">
+                    <em>Any subtopic</em>
+                  </MenuItem>
+                  {children.map((t) => (
                     <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>
                   ))}
                 </Select>
@@ -129,6 +179,15 @@ export default function QuizPage({ studentName = 'default' }: Props) {
               </Button>
             </Box>
           </Paper>
+
+          {showStreak && (
+            <Box className="streak-celebrate" sx={{ textAlign: 'center', py: 2 }}>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#f59e0b' }}>
+                {session.streak} in a row!
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>Keep it up!</Typography>
+            </Box>
+          )}
 
           {error && <Alert severity="error" sx={{ borderRadius: '12px' }}>{error}</Alert>}
 

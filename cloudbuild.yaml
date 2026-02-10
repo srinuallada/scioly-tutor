@@ -1,0 +1,59 @@
+steps:
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'VITE_GOOGLE_CLIENT_ID=${_VITE_GOOGLE_CLIENT_ID}'
+      - '-f'
+      - 'Dockerfile.cloudrun'
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/scioly-tutor/app:$BUILD_ID'
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/scioly-tutor/app:latest'
+      - '.'
+
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/scioly-tutor/app'
+
+  # Deploy to Cloud Run with Secret Manager for GEMINI_API_KEY
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'scioly-tutor'
+      - '--image'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/scioly-tutor/app:$BUILD_ID'
+      - '--region'
+      - 'us-east1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'GEMINI_API_KEY=${_GEMINI_API_KEY},GOOGLE_CLIENT_ID=${_VITE_GOOGLE_CLIENT_ID},REQUIRE_AUTH=true,ALLOWED_EMAILS=${_ALLOWED_EMAILS}'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '3'
+      - '--timeout'
+      - '120'
+
+images:
+  - 'us-east1-docker.pkg.dev/$PROJECT_ID/scioly-tutor/app:latest'
+
+substitutions:
+  _VITE_GOOGLE_CLIENT_ID: ''
+  _GEMINI_API_KEY: ''
+  _ALLOWED_EMAILS: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY

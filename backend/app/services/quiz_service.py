@@ -19,6 +19,7 @@ Respond in EXACTLY this JSON format (no markdown, no extra text):
 
 
 def submit_answer(
+    student_id: str,
     student_name: str,
     topic: str,
     question: str,
@@ -29,6 +30,7 @@ def submit_answer(
     is_correct = student_answer.strip().lower() == correct_answer.strip().lower()
 
     save_quiz_result(
+        student_id=student_id,
         student_name=student_name,
         topic=topic,
         question=question,
@@ -38,7 +40,7 @@ def submit_answer(
     )
 
     # Update spaced repetition schedule
-    update_schedule(student_name, topic, is_correct)
+    update_schedule(student_id, student_name, topic, is_correct)
 
     return {"is_correct": is_correct, "correct_answer": correct_answer}
 

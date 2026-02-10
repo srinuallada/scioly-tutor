@@ -14,6 +14,10 @@ env/
 .env.local
 .env.*.local
 
+# Google OAuth credentials
+credentials.json
+backend/app/data/drive_token.json
+
 # IDE
 .vscode/
 .idea/
@@ -33,11 +37,19 @@ npm-debug.log*
 # Build output
 frontend/dist/
 backend/app/data/uploads/*
+backend/app/data/images/*
 backend/app/data/index/*
 backend/app/data/app.db
 !backend/app/data/.gitkeep
 !backend/app/data/uploads/.gitkeep
+!backend/app/data/images/.gitkeep
 !backend/app/data/index/.gitkeep
+
+# Study materials (large files, not for source control)
+/materials/
+
+# Windows artifacts
+nul
 
 # Testing
 .pytest_cache/

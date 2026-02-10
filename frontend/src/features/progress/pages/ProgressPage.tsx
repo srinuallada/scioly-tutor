@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Box, Typography, CircularProgress, Alert, Tabs, Tab } from '@mui/material'
+import { useState, useEffect, useCallback } from 'react'
+import { Box, Typography, CircularProgress, Alert, Tabs, Tab, Button } from '@mui/material'
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined'
 import EventRepeatIcon from '@mui/icons-material/EventRepeat'
 import ProgressDashboard from '../components/ProgressDashboard'
@@ -19,20 +19,24 @@ export default function ProgressPage({ studentName }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState(0)
 
-  useEffect(() => {
+  const fetchProgress = useCallback(() => {
     setLoading(true)
     Promise.all([
-      getProgress(studentName),
-      getStudyPlan(studentName),
+      getProgress(),
+      getStudyPlan(),
     ])
       .then(([progress, studyPlan]) => {
         setData(progress)
         setPlan(studyPlan)
         setError(null)
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load progress'))
       .finally(() => setLoading(false))
   }, [studentName])
+
+  useEffect(() => {
+    fetchProgress()
+  }, [fetchProgress])
 
   if (loading) {
     return <Box className="flex items-center justify-center h-full"><CircularProgress /></Box>
@@ -71,7 +75,19 @@ export default function ProgressPage({ studentName }: Props) {
 
       <Box className="flex-1 overflow-y-auto p-6">
         <Box className="max-w-3xl mx-auto">
-          {error && <Alert severity="info" sx={{ borderRadius: '12px' }}>No progress data yet. Start a quiz to track your performance!</Alert>}
+          {error && (
+            <Alert
+              severity="error"
+              sx={{ borderRadius: '12px' }}
+              action={(
+                <Button size="small" onClick={fetchProgress} sx={{ textTransform: 'none' }}>
+                  Retry
+                </Button>
+              )}
+            >
+              {error}
+            </Alert>
+          )}
 
           {!hasQuizData && !hasPlanData && !error && (
             <Box className="text-center py-12">

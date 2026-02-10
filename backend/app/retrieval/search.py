@@ -19,6 +19,15 @@ class StudySearch:
         self.chunks: list[dict] = []
         self.bm25: BM25Okapi | None = None
         self._tokenized: list[list[str]] = []
+        self.source_links: dict[str, str] = {}
+
+    def load_source_links(self, path: str) -> None:
+        """Load filename → Google Drive URL mapping."""
+        import os
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                self.source_links = json.load(f)
+            log.info("Source links loaded: %d files", len(self.source_links))
 
     def load_chunks(self, chunks_path: str) -> None:
         """Load chunks from JSON and build the search index."""
@@ -58,6 +67,9 @@ class StudySearch:
             if score > 0:
                 chunk = self.chunks[idx].copy()
                 chunk["relevance_score"] = round(float(score), 3)
+                url = self.source_links.get(chunk.get("source_file", ""))
+                if url:
+                    chunk["source_url"] = url
                 results.append(chunk)
 
         return results

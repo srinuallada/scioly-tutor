@@ -1,9 +1,18 @@
 import { config } from '../../app/config/env'
 
+export interface StreamSourceDetail {
+  source_file: string
+  section_title: string
+  source_type: string
+  page_or_slide?: number | null
+  source_url?: string | null
+}
+
 export interface StreamMeta {
   intent: string
   sources_used: number
   topics_referenced: string[]
+  source_details?: StreamSourceDetail[]
 }
 
 export interface StreamCallbacks {
@@ -23,7 +32,12 @@ export async function sendMessageStream(
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(localStorage.getItem('google_id_token')
+        ? { Authorization: `Bearer ${localStorage.getItem('google_id_token')}` }
+        : {}),
+    },
     body: JSON.stringify({
       message,
       student_name: studentName,
@@ -32,6 +46,9 @@ export async function sendMessageStream(
   })
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('google_id_token')
+    }
     const body = await res.json().catch(() => ({ detail: `Request failed (${res.status})` }))
     callbacks.onError(body.detail || `HTTP ${res.status}`)
     return

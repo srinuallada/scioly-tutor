@@ -1,9 +1,18 @@
+export interface SourceDetail {
+  source_file: string
+  section_title: string
+  source_type: string
+  page_or_slide?: number | null
+  source_url?: string | null
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   intent?: string
   sources_used?: number
   topics_referenced?: string[]
+  source_details?: SourceDetail[]
   quiz_data?: QuizData | null
 }
 
@@ -66,7 +75,7 @@ export interface QuizResult {
 }
 
 export interface ProgressResponse {
-  student_name: string
+  student_id: string
   overall: { total_questions: number; correct: number; accuracy: number }
   by_topic: TopicScore[]
   weak_areas: string[]

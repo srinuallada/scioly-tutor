@@ -3,7 +3,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts'
 import StatCard from '../../../shared/ui/StatCard'
 import type { ProgressResponse, TopicScore } from '../../../shared/types'
 
@@ -32,7 +32,9 @@ interface Props {
 export default function ProgressDashboard({ data }: Props) {
   const { overall, by_topic: byTopic, weak_areas: weakAreas, recent_activity: recentActivity } = data
   const accuracy = overall.accuracy * 100
+  const rotateLabels = byTopic.length > 5
   const chartData = byTopic.map((t) => ({ name: t.topic.length > 15 ? t.topic.slice(0, 15) + '...' : t.topic, accuracy: Math.round(t.accuracy * 100) }))
+  const chartHeight = Math.max(300, Math.min(byTopic.length * 50, 500))
   const barColors = chartData.map((d) => d.accuracy >= 80 ? '#16a34a' : d.accuracy >= 60 ? '#f59e0b' : '#dc2626')
 
   return (
@@ -54,16 +56,23 @@ export default function ProgressDashboard({ data }: Props) {
       )}
 
       {chartData.length > 0 && (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <Box className="px-4 py-3" sx={{ bgcolor: '#f8fafc' }}><Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>Accuracy by Topic</Typography></Box>
           <Divider />
-          <Box className="p-4" sx={{ height: 300 }}>
+          <Box className="p-4" sx={{ height: chartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: rotateLabels ? 40 : 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                  angle={rotateLabels ? -35 : 0}
+                  textAnchor={rotateLabels ? 'end' : 'middle'}
+                />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} tickFormatter={(v: number) => `${v}%`} />
                 <Tooltip formatter={(v: number) => [`${v}%`, 'Accuracy']} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} />
+                <ReferenceLine y={80} stroke="#16a34a" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: '80% target', position: 'right', fill: '#16a34a', fontSize: 10 }} />
                 <Bar dataKey="accuracy" radius={[6, 6, 0, 0]} barSize={32}>{chartData.map((_, i) => <Cell key={i} fill={barColors[i]} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -72,7 +81,7 @@ export default function ProgressDashboard({ data }: Props) {
       )}
 
       {byTopic.length > 0 && (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <Box className="px-4 py-3" sx={{ bgcolor: '#f8fafc' }}><Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>Topic Breakdown</Typography></Box>
           <Divider />
           {byTopic.map((t, i) => <TopicRow key={i} topic={t} index={i} />)}
@@ -80,7 +89,7 @@ export default function ProgressDashboard({ data }: Props) {
       )}
 
       {recentActivity.length > 0 && (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <Box className="px-4 py-3" sx={{ bgcolor: '#f8fafc' }}><Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>Recent Activity</Typography></Box>
           <Divider />
           {recentActivity.slice(0, 10).map((item, i) => (

@@ -17,6 +17,7 @@ from app.domain import intents
 
 async def handle_chat(
     message: str,
+    student_id: str,
     student_name: str,
     conversation_history: list[dict],
     search_engine: StudySearch,
@@ -28,7 +29,7 @@ async def handle_chat(
     """
     # 0. Sanitize user input & check rate limit
     message = sanitize_user_message(message)
-    check_rate_limit(student_name)
+    check_rate_limit(student_id)
 
     # 1. Classify intent (free, instant)
     intent = classify_intent(message)
@@ -41,9 +42,10 @@ async def handle_chat(
     search_context = sanitize_search_context(search_engine.search_formatted(message, top_k=5))
     search_results = search_engine.search(message, top_k=5)
     topics_found = list(set(r["section_title"] for r in search_results))
+    source_details = _extract_source_details(search_results)
 
     # 4. Build prompt
-    weak_areas = get_weak_areas(student_name)
+    weak_areas = get_weak_areas(student_id)
     system_prompt = build_prompt(
         intent=intent,
         search_context=search_context,
@@ -62,14 +64,15 @@ async def handle_chat(
     processed = format_response(response_text, intent)
 
     # 7. Save to chat history
-    save_chat_message(student_name, "user", message, intent)
-    save_chat_message(student_name, "assistant", processed["text"], intent)
+    save_chat_message(student_id, student_name, "user", message, intent)
+    save_chat_message(student_id, student_name, "assistant", processed["text"], intent)
 
     return {
         "response": processed["text"],
         "intent": intent,
         "sources_used": len(search_results),
         "topics_referenced": topics_found,
+        "source_details": source_details,
         "quiz_data": processed.get("quiz_data"),
     }
 
@@ -80,6 +83,7 @@ from typing import Generator
 
 def handle_chat_stream(
     message: str,
+    student_id: str,
     student_name: str,
     conversation_history: list[dict],
     search_engine: StudySearch,
@@ -94,7 +98,7 @@ def handle_chat_stream(
     """
     # 0. Sanitize & rate limit
     message = sanitize_user_message(message)
-    check_rate_limit(student_name)
+    check_rate_limit(student_id)
 
     # 1. Classify intent
     intent = classify_intent(message)
@@ -111,9 +115,10 @@ def handle_chat_stream(
     search_context = sanitize_search_context(search_engine.search_formatted(message, top_k=5))
     search_results = search_engine.search(message, top_k=5)
     topics_found = list(set(r["section_title"] for r in search_results))
+    source_details = _extract_source_details(search_results)
 
     # 4. Build prompt
-    weak_areas = get_weak_areas(student_name)
+    weak_areas = get_weak_areas(student_id)
     system_prompt = build_prompt(
         intent=intent, search_context=search_context,
         student_name=student_name, weak_areas=weak_areas,
@@ -121,7 +126,7 @@ def handle_chat_stream(
     messages = build_messages(user_message=message, conversation_history=conversation_history)
 
     # Send metadata first
-    yield f"data: {json.dumps({'type': 'meta', 'intent': intent, 'sources_used': len(search_results), 'topics_referenced': topics_found})}\n\n"
+    yield f"data: {json.dumps({'type': 'meta', 'intent': intent, 'sources_used': len(search_results), 'topics_referenced': topics_found, 'source_details': source_details})}\n\n"
 
     # 5. Stream from Gemini
     full_text = ""
@@ -133,11 +138,30 @@ def handle_chat_stream(
     processed = format_response(full_text, intent)
 
     # 7. Save to chat history
-    save_chat_message(student_name, "user", message, intent)
-    save_chat_message(student_name, "assistant", processed["text"], intent)
+    save_chat_message(student_id, student_name, "user", message, intent)
+    save_chat_message(student_id, student_name, "assistant", processed["text"], intent)
 
     # 8. Send completion with quiz data
     yield f"data: {json.dumps({'type': 'done', 'quiz_data': processed.get('quiz_data')})}\n\n"
+
+
+def _extract_source_details(search_results: list[dict]) -> list[dict]:
+    """Extract unique source details from search results for the frontend."""
+    seen: set[str] = set()
+    details: list[dict] = []
+    for r in search_results:
+        key = r["source_file"]
+        if key in seen:
+            continue
+        seen.add(key)
+        details.append({
+            "source_file": r["source_file"],
+            "section_title": r["section_title"],
+            "source_type": r.get("source_type", ""),
+            "page_or_slide": r.get("page_or_slide"),
+            "source_url": r.get("source_url"),
+        })
+    return details
 
 
 def _handle_topics(search_engine: StudySearch) -> dict:

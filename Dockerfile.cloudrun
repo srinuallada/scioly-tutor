@@ -1,0 +1,39 @@
+# ── Stage 1: Build React frontend ──────────────────────────────────
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /build
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+
+RUN npm run build
+
+
+# ── Stage 2: Python backend + built frontend ──────────────────────
+FROM python:3.11-slim
+
+WORKDIR /srv
+
+# Install Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend application
+COPY backend/app/ app/
+
+# Copy pre-built data (index + images) into the container
+COPY backend/app/data/index/ app/data/index/
+COPY backend/app/data/images/ app/data/images/
+
+# Copy built frontend into app/static/ (FastAPI will serve it)
+COPY --from=frontend-build /build/dist/ app/static/
+
+# Cloud Run injects PORT (default 8080)
+ENV PORT=8080
+
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT

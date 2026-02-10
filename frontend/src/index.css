@@ -91,7 +91,13 @@ body {
 
 .markdown-content strong {
   font-weight: 600;
-  color: #1e40af;
+  color: #0f172a;
+}
+
+.markdown-content h2,
+.markdown-content h3 {
+  border-left: 3px solid #3b82f6;
+  padding-left: 8px;
 }
 
 .markdown-content code {
@@ -160,4 +166,51 @@ body {
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
   50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+}
+
+/* Quiz shake animation for incorrect answers */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+.quiz-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Streaming cursor */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '|';
+  display: inline;
+  color: #2563eb;
+  font-weight: 700;
+  animation: blink-cursor 0.8s infinite;
+}
+
+/* Quiz streak celebration */
+@keyframes celebrate {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.streak-celebrate {
+  animation: celebrate 0.6s ease-out;
+}
+
+/* Focus/accessibility states */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

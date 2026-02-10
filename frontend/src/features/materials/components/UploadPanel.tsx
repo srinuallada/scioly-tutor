@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box, Typography, Paper, Button, LinearProgress, IconButton,
-  List, ListItem, ListItemIcon, ListItemText,
+  List, ListItem, ListItemIcon, ListItemText, ButtonBase,
 } from '@mui/material'
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined'
 import DescriptionIcon from '@mui/icons-material/Description'
@@ -11,6 +11,7 @@ import TableChartIcon from '@mui/icons-material/TableChart'
 import TextSnippetIcon from '@mui/icons-material/TextSnippet'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import type { ReactElement } from 'react'
+import { useToast } from '../../../shared/ui/ToastProvider'
 
 const FILE_ICONS: Record<string, ReactElement> = {
   docx: <DescriptionIcon sx={{ color: '#2563eb' }} />,
@@ -36,18 +37,28 @@ interface Props {
 export default function UploadPanel({ onUpload, uploading }: Props) {
   const [files, setFiles] = useState<File[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [rejectedCount, setRejectedCount] = useState(0)
+  const toast = useToast()
 
-  const onDrop = useCallback((e: React.DragEvent) => {
+  const isAccepted = (file: File) =>
+    Object.keys(FILE_ICONS).includes(file.name.split('.').pop()?.toLowerCase() ?? '')
+
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
-    const accepted = Array.from(e.dataTransfer.files).filter((f) =>
-      Object.keys(FILE_ICONS).includes(f.name.split('.').pop()?.toLowerCase() ?? '')
-    )
+    const dropped = Array.from(e.dataTransfer.files)
+    const accepted = dropped.filter(isAccepted)
+    setRejectedCount(dropped.length - accepted.length)
     setFiles((prev) => [...prev, ...accepted])
-  }, [])
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+    if (!e.target.files) return
+    const selected = Array.from(e.target.files)
+    const accepted = selected.filter(isAccepted)
+    setRejectedCount(selected.length - accepted.length)
+    if (accepted.length > 0) setFiles((prev) => [...prev, ...accepted])
+    e.target.value = ''
   }
 
   const handleUpload = async () => {
@@ -56,13 +67,26 @@ export default function UploadPanel({ onUpload, uploading }: Props) {
     setFiles([])
   }
 
+  useEffect(() => {
+    if (rejectedCount > 0) {
+      toast({
+        severity: 'warning',
+        message: `${rejectedCount} file${rejectedCount > 1 ? 's were' : ' was'} skipped because the type isn’t supported.`,
+      })
+      setRejectedCount(0)
+    }
+  }, [rejectedCount, toast])
+
   return (
     <>
-      <Paper
+      <ButtonBase
+        component={Paper}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         elevation={0}
+        role="button"
+        tabIndex={0}
         sx={{
           p: 5, textAlign: 'center', border: '2px dashed',
           borderColor: dragOver ? '#2563eb' : '#cbd5e1', borderRadius: '16px',
@@ -70,15 +94,18 @@ export default function UploadPanel({ onUpload, uploading }: Props) {
           '&:hover': { borderColor: '#93c5fd', bgcolor: '#f8fafc' },
         }}
         onClick={() => document.getElementById('file-input')?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') document.getElementById('file-input')?.click() }}
       >
         <input id="file-input" type="file" multiple accept={ACCEPTED} onChange={handleFileSelect} style={{ display: 'none' }} />
         <CloudUploadOutlinedIcon sx={{ fontSize: 48, color: dragOver ? '#2563eb' : '#94a3b8', mb: 2 }} />
         <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#334155', mb: 0.5 }}>Drop files here or click to browse</Typography>
         <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: '0.8rem' }}>Supports Word, PowerPoint, PDF, Excel, Text, and Markdown</Typography>
-      </Paper>
+      </ButtonBase>
+
+      {/* toast handles rejected file feedback */}
 
       {files.length > 0 && (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <Box className="px-4 py-3 flex items-center justify-between" sx={{ bgcolor: '#f8fafc' }}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>{files.length} file{files.length > 1 ? 's' : ''} selected</Typography>
             <Button variant="contained" size="small" onClick={handleUpload} disabled={uploading} startIcon={<CloudUploadOutlinedIcon />} sx={{ fontSize: '0.8rem' }}>

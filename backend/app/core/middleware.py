@@ -10,9 +10,12 @@ from app.core.errors import AppError
 
 def register_middleware(app: FastAPI) -> None:
     """Attach all middleware to the FastAPI app."""
+    # On Cloud Run, frontend is served from same origin, but keep CORS
+    # for local dev (localhost:5173 → localhost:8000)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
