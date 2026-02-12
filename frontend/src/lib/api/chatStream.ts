@@ -5,6 +5,7 @@ export interface StreamSourceDetail {
   section_title: string
   source_type: string
   page_or_slide?: number | null
+  chunk_index?: number | null
   source_url?: string | null
 }
 
@@ -30,13 +31,12 @@ export async function sendMessageStream(
 ): Promise<void> {
   const url = `${config.apiBaseUrl}/chat/stream`
 
+  const token = localStorage.getItem('google_id_token')
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(localStorage.getItem('google_id_token')
-        ? { Authorization: `Bearer ${localStorage.getItem('google_id_token')}` }
-        : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
       message,

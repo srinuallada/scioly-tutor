@@ -159,6 +159,7 @@ def _extract_source_details(search_results: list[dict]) -> list[dict]:
             "section_title": r["section_title"],
             "source_type": r.get("source_type", ""),
             "page_or_slide": r.get("page_or_slide"),
+            "chunk_index": r.get("chunk_index"),
             "source_url": r.get("source_url"),
         })
     return details

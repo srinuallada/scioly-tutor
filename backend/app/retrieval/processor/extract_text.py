@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 from app.domain.documents import Chunk
+from app.retrieval.processor.chunking_utils import split_text_to_chunks
 
 
 def extract_text(filepath: str) -> list[Chunk]:
@@ -27,24 +28,28 @@ def extract_text(filepath: str) -> list[Chunk]:
             if re.match(r'^#{1,3}\s+', part):
                 current_title = re.sub(r'^#{1,3}\s+', '', part)
             else:
-                chunks.append(Chunk(
-                    source_file=fname, source_type="md",
-                    section_title=current_title, content=part,
-                ))
-        return chunks if chunks else [Chunk(
-            source_file=fname, source_type="md",
-            section_title="Full Document", content=content,
-        )]
+                for idx, chunk_text in enumerate(split_text_to_chunks(part), 1):
+                    chunks.append(Chunk(
+                        source_file=fname, source_type="md",
+                        section_title=f"{current_title} — Part {idx}", content=chunk_text,
+                    ))
+        if chunks:
+            return chunks
+        fallback = split_text_to_chunks(content)
+        return [
+            Chunk(
+                source_file=fname, source_type="md",
+                section_title="Full Document", content=chunk_text,
+            )
+            for chunk_text in (fallback or [content])
+        ]
 
-    paragraphs = re.split(r'\n\s*\n', content)
     chunks = []
-    for i, para in enumerate(paragraphs):
-        para = para.strip()
-        if para and len(para.split()) > 5:
-            chunks.append(Chunk(
-                source_file=fname, source_type="txt",
-                section_title=f"Section {i + 1}", content=para,
-            ))
+    for idx, chunk_text in enumerate(split_text_to_chunks(content), 1):
+        chunks.append(Chunk(
+            source_file=fname, source_type="txt",
+            section_title=f"Section {idx}", content=chunk_text,
+        ))
 
     return chunks if chunks else [Chunk(
         source_file=fname, source_type="txt",

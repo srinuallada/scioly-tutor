@@ -53,8 +53,12 @@ export default function QuizPage({ studentName = 'default' }: Props) {
     : []
 
   const handleGenerate = async () => {
-    const topic = selectedChild
-      ? `${selectedParent} → ${selectedChild}`
+    const fallbackChild = selectedParent && !selectedChild
+      ? children[Math.floor(Math.random() * children.length)] ?? ''
+      : ''
+    const effectiveChild = selectedChild || fallbackChild
+    const topic = effectiveChild
+      ? `${selectedParent} → ${effectiveChild}`
       : selectedParent || 'random science topic'
     setGenerating(true)
     setError(null)
@@ -168,6 +172,11 @@ export default function QuizPage({ studentName = 'default' }: Props) {
                   ))}
                 </Select>
               </FormControl>
+              {selectedParent && !selectedChild && (
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  Any subtopic will choose a random section from this event.
+                </Typography>
+              )}
               <Button
                 variant="contained"
                 startIcon={generating ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}

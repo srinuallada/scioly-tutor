@@ -26,21 +26,26 @@ const QUICK_PROMPTS = [
 interface Props {
   studentName: string
   materialCount: number
+  userEmail?: string
 }
 
 const STORAGE_KEY_PREFIX = 'scioly-chat-'
 
-function loadMessages(studentName: string): ChatMessage[] {
+function chatStorageKey(userEmail?: string): string {
+  return STORAGE_KEY_PREFIX + (userEmail || 'default')
+}
+
+function loadMessages(userEmail?: string): ChatMessage[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PREFIX + studentName)
+    const raw = localStorage.getItem(chatStorageKey(userEmail))
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
   }
 }
 
-export default function ChatPage({ studentName, materialCount }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(studentName))
+export default function ChatPage({ studentName, materialCount, userEmail }: Props) {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(userEmail))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [clearOpen, setClearOpen] = useState(false)
@@ -48,24 +53,24 @@ export default function ChatPage({ studentName, materialCount }: Props) {
   const streamBufferRef = useRef('')
   const flushTimerRef = useRef<number | null>(null)
 
-  // Reload messages when student changes
+  // Reload messages when user changes
   useEffect(() => {
-    setMessages(loadMessages(studentName))
-  }, [studentName])
+    setMessages(loadMessages(userEmail))
+  }, [userEmail])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_PREFIX + studentName, JSON.stringify(messages))
-  }, [messages, studentName])
+    localStorage.setItem(chatStorageKey(userEmail), JSON.stringify(messages))
+  }, [messages, userEmail])
 
   useEffect(() => {
     const handler = (event: Event) => {
-      const custom = event as CustomEvent<{ studentName?: string }>
-      if (custom.detail?.studentName && custom.detail.studentName !== studentName) return
+      const custom = event as CustomEvent<{ userEmail?: string }>
+      if (custom.detail?.userEmail && custom.detail.userEmail !== userEmail) return
       setMessages([])
     }
     window.addEventListener('scioly-clear-chat', handler as EventListener)
     return () => window.removeEventListener('scioly-clear-chat', handler as EventListener)
-  }, [studentName])
+  }, [userEmail])
 
   const send = async (text?: string) => {
     const msg = text || input.trim()
@@ -196,7 +201,7 @@ export default function ChatPage({ studentName, materialCount }: Props) {
 
   const clearChat = () => {
     setMessages([])
-    localStorage.removeItem(STORAGE_KEY_PREFIX + studentName)
+    localStorage.removeItem(chatStorageKey(userEmail))
   }
 
   const isEmpty = messages.length === 0

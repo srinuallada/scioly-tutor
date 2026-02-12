@@ -12,6 +12,7 @@ class SourceDetail(BaseModel):
     section_title: str
     source_type: str
     page_or_slide: int | None = None
+    chunk_index: int | None = None
     source_url: str | None = None
 
 

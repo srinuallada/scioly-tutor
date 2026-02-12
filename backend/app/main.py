@@ -21,7 +21,7 @@ from app.core.middleware import register_middleware
 from app.storage.db import init_db
 from app.api.deps import search_engine
 
-from app.core.auth import require_auth
+from app.core.auth import require_auth, router as auth_router
 from app.api.routes import health, chat, upload, search, topics, quiz, progress, images
 
 # Path to built frontend (exists only in Cloud Run / Docker)
@@ -64,6 +64,12 @@ app.include_router(
     health.router,
     prefix="/api",
     tags=["system"],
+)
+# Auth verify — no dependencies wrapper (require_auth is inside the route)
+app.include_router(
+    auth_router,
+    prefix="/api",
+    tags=["auth"],
 )
 app.include_router(
     chat.router,
@@ -115,7 +121,8 @@ if STATIC_DIR.is_dir():
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
         """Serve index.html for all non-API routes (SPA client-side routing)."""
-        file = STATIC_DIR / path
-        if file.is_file():
+        file = (STATIC_DIR / path).resolve()
+        # Prevent path traversal — file must be inside STATIC_DIR
+        if file.is_file() and str(file).startswith(str(STATIC_DIR.resolve())):
             return FileResponse(str(file))
         return FileResponse(str(STATIC_DIR / "index.html"))

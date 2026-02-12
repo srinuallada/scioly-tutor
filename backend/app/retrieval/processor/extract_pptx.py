@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from app.domain.documents import Chunk
+from app.retrieval.processor.chunking_utils import split_text_to_chunks
 from app.settings import IMAGES_DIR
 
 log = logging.getLogger(__name__)
@@ -80,19 +81,25 @@ def extract_pptx(filepath: str) -> list[Chunk]:
 
         content = "\n".join(body_parts)
         if content.strip():
-            chunks.append(Chunk(
-                source_file=fname, source_type="pptx",
-                section_title=title, content=content,
-                page_or_slide=slide_num,
-            ))
+            chunk_texts = split_text_to_chunks(content)
+            if not chunk_texts and content:
+                chunk_texts = [content]
+            for idx, chunk_text in enumerate(chunk_texts, 1):
+                chunks.append(Chunk(
+                    source_file=fname, source_type="pptx",
+                    section_title=f"{title} — Part {idx}",
+                    content=chunk_text,
+                    page_or_slide=slide_num,
+                ))
 
         if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
             notes = slide.notes_slide.notes_text_frame.text.strip()
             if notes:
-                chunks.append(Chunk(
-                    source_file=fname, source_type="pptx",
-                    section_title=f"Notes — {title}",
-                    content=notes, page_or_slide=slide_num,
-                ))
+                for idx, chunk_text in enumerate(split_text_to_chunks(notes), 1):
+                    chunks.append(Chunk(
+                        source_file=fname, source_type="pptx",
+                        section_title=f"Notes — {title} — Part {idx}",
+                        content=chunk_text, page_or_slide=slide_num,
+                    ))
 
     return chunks

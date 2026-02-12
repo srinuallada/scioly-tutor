@@ -14,6 +14,7 @@ class Chunk:
     section_title: str
     content: str
     page_or_slide: Optional[int] = None
+    chunk_index: int = 0
     word_count: int = 0
     id: str = ""
 

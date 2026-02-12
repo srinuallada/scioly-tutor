@@ -29,6 +29,15 @@ EXTRACTORS = {
 }
 
 
+# Minimum words for a chunk to be kept (unless it contains an image reference)
+_MIN_CHUNK_WORDS = 30
+
+
+def _has_image_ref(content: str) -> bool:
+    """Check if chunk content contains a markdown image reference."""
+    return "![" in content and "/api/images/" in content
+
+
 def process_file(filepath: str) -> list[Chunk]:
     """Process a single file and return chunks."""
     ext = Path(filepath).suffix.lower()
@@ -39,9 +48,25 @@ def process_file(filepath: str) -> list[Chunk]:
         return []
 
     try:
-        chunks = extractor(filepath)
-        log.info("%s: %d chunks", Path(filepath).name, len(chunks))
-        return chunks
+        raw_chunks = extractor(filepath)
+
+        # Filter noisy low-signal chunks (keep image references regardless)
+        filtered = [
+            c for c in raw_chunks
+            if c.word_count >= _MIN_CHUNK_WORDS or _has_image_ref(c.content)
+        ]
+
+        # Assign sequential chunk_index per source file
+        for idx, chunk in enumerate(filtered):
+            chunk.chunk_index = idx
+
+        dropped = len(raw_chunks) - len(filtered)
+        if dropped:
+            log.info("%s: %d chunks (%d short chunks dropped)", Path(filepath).name, len(filtered), dropped)
+        else:
+            log.info("%s: %d chunks", Path(filepath).name, len(filtered))
+
+        return filtered
     except Exception as e:
         log.error("Error processing %s: %s", filepath, e)
         return []

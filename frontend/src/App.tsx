@@ -34,8 +34,12 @@ const STUDENT_KEY = 'scioly-student-name'
 const TAB_KEY = 'scioly-active-tab'
 const CHAT_STORAGE_PREFIX = 'scioly-chat-'
 
-function loadStudentName(): string {
-  return localStorage.getItem(STUDENT_KEY) || 'default'
+function studentKeyFor(email?: string | null): string {
+  return email ? `${STUDENT_KEY}:${email}` : STUDENT_KEY
+}
+
+function loadStudentName(email?: string | null): string {
+  return localStorage.getItem(studentKeyFor(email)) || 'default'
 }
 
 function decodeJwt(token: string): { email?: string; exp?: number } | null {
@@ -70,6 +74,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [clearChatOpen, setClearChatOpen] = useState(false)
   const [googleBtnLoaded, setGoogleBtnLoaded] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const isAuthed = Boolean(authEmail)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -93,9 +98,38 @@ export default function App() {
       setAuthEmail(null)
       return
     }
+
+    // Set email immediately from local JWT so UI doesn't flash
     const decoded = token ? decodeJwt(token) : null
     setAuthEmail(decoded?.email || null)
+
+    // Then verify with backend — only block on explicit 403
+    fetch(`${config.apiBaseUrl}/auth/verify`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.status === 403) {
+          localStorage.removeItem('google_id_token')
+          setAuthEmail(null)
+          setAuthError('Access denied. Your account is not authorized to use this app.')
+          if (window.google?.accounts?.id) {
+            window.google.accounts.id.disableAutoSelect()
+          }
+        }
+        // Any other error (500, network) — stay logged in, backend will enforce on API calls
+      })
+      .catch(() => {
+        // Network error — stay logged in
+      })
   }, [])
+
+  useEffect(() => {
+    if (authEmail) {
+      const name = loadStudentName(authEmail)
+      setStudentName(name)
+      setNameInput(name)
+    }
+  }, [authEmail])
 
   useEffect(() => {
     if (!config.googleClientId) return
@@ -105,16 +139,42 @@ export default function App() {
 
       window.google.accounts.id.initialize({
         client_id: config.googleClientId,
-        callback: (response: { credential: string }) => {
+        callback: async (response: { credential: string }) => {
           localStorage.setItem('google_id_token', response.credential)
-          if (isTokenValid(response.credential)) {
-            const decoded = decodeJwt(response.credential)
-            setAuthEmail(decoded?.email || null)
-            refreshMaterials()
-          } else {
+          if (!isTokenValid(response.credential)) {
             localStorage.removeItem('google_id_token')
             setAuthEmail(null)
+            return
           }
+
+          // Verify with backend that this user is authorized
+          try {
+            const res = await fetch(`${config.apiBaseUrl}/auth/verify`, {
+              headers: { Authorization: `Bearer ${response.credential}` },
+            })
+            if (res.status === 403) {
+              localStorage.removeItem('google_id_token')
+              setAuthEmail(null)
+              setAuthError('Access denied. Your account is not authorized to use this app.')
+              if (window.google?.accounts?.id) {
+                window.google.accounts.id.disableAutoSelect()
+              }
+              return
+            }
+            if (!res.ok) {
+              localStorage.removeItem('google_id_token')
+              setAuthEmail(null)
+              setAuthError('Authentication failed. Please try again.')
+              return
+            }
+          } catch {
+            // Network error — allow through (backend will still enforce on API calls)
+          }
+
+          const decoded = decodeJwt(response.credential)
+          setAuthEmail(decoded?.email || null)
+          setAuthError(null)
+          refreshMaterials()
         },
       })
 
@@ -169,14 +229,14 @@ export default function App() {
     const name = sanitized || 'default'
     setStudentName(name)
     setNameInput(name)
-    localStorage.setItem(STUDENT_KEY, name)
+    localStorage.setItem(studentKeyFor(authEmail), name)
     if (sanitized !== nameInput.trim()) {
       toast({ severity: 'info', message: 'Student name updated. Only letters, numbers, spaces, "_" and "-" are kept.' })
     }
     if (!sanitized) {
       toast({ severity: 'warning', message: 'Student name was empty, so it was set to Default.' })
     }
-  }, [nameInput, toast])
+  }, [authEmail, nameInput, toast])
 
   const handleTabChange = useCallback((next: number) => {
     setTab(next)
@@ -185,9 +245,9 @@ export default function App() {
 
   const clearChatHistory = useCallback(() => {
     localStorage.removeItem(CHAT_STORAGE_PREFIX + studentName)
-    window.dispatchEvent(new CustomEvent('scioly-clear-chat', { detail: { studentName } }))
+    window.dispatchEvent(new CustomEvent('scioly-clear-chat', { detail: { userEmail: authEmail || undefined } }))
     toast({ severity: 'success', message: 'Chat history cleared.' })
-  }, [studentName, toast])
+  }, [authEmail, studentName, toast])
 
   const sidebar = useMemo(() => (
     <Box
@@ -438,6 +498,26 @@ export default function App() {
             Your AI-powered study companion for Science Olympiad
           </Typography>
 
+          {/* Auth error message */}
+          {authError && (
+            <Box
+              sx={{
+                bgcolor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: 2,
+                px: 3,
+                py: 1.5,
+                mb: 2,
+                maxWidth: 320,
+                width: '100%',
+              }}
+            >
+              <Typography variant="body2" sx={{ color: '#dc2626', fontSize: '0.85rem', textAlign: 'center' }}>
+                {authError}
+              </Typography>
+            </Box>
+          )}
+
           {/* Google SDK button (hidden if SDK doesn't load) */}
           <Box id="google-signin-btn" />
 
@@ -550,7 +630,7 @@ export default function App() {
       >
         <Fade in={tab === 0} timeout={200} unmountOnExit mountOnEnter>
           <Box className="flex-1 flex flex-col" sx={{ minHeight: 0, display: tab === 0 ? 'flex' : 'none' }}>
-            <ChatPage studentName={studentName} materialCount={materialCount} />
+            <ChatPage studentName={studentName} materialCount={materialCount} userEmail={authEmail || undefined} />
           </Box>
         </Fade>
         {tab !== 0 && (

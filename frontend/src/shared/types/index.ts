@@ -3,6 +3,7 @@ export interface SourceDetail {
   section_title: string
   source_type: string
   page_or_slide?: number | null
+  chunk_index?: number | null
   source_url?: string | null
 }
 

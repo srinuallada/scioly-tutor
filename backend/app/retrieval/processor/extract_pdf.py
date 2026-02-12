@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from app.domain.documents import Chunk
+from app.retrieval.processor.chunking_utils import split_text_to_chunks
 from app.settings import IMAGES_DIR
 
 log = logging.getLogger(__name__)
@@ -51,13 +52,17 @@ def extract_pdf(filepath: str) -> list[Chunk]:
 
             if text and text.strip():
                 content = text.strip()
-                if page_image_md:
-                    content = page_image_md + "\n\n" + content
-                chunks.append(Chunk(
-                    source_file=fname, source_type="pdf",
-                    section_title=f"Page {page_num}",
-                    content=content, page_or_slide=page_num,
-                ))
+                chunk_texts = split_text_to_chunks(content)
+                if not chunk_texts and content:
+                    chunk_texts = [content]
+                for idx, chunk_text in enumerate(chunk_texts, 1):
+                    if page_image_md and idx == 1:
+                        chunk_text = page_image_md + "\n\n" + chunk_text
+                    chunks.append(Chunk(
+                        source_file=fname, source_type="pdf",
+                        section_title=f"Page {page_num} — Part {idx}",
+                        content=chunk_text, page_or_slide=page_num,
+                    ))
             elif page_image_md:
                 # Page has images but no extractable text (scanned page)
                 chunks.append(Chunk(

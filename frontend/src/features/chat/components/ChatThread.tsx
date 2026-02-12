@@ -1,5 +1,6 @@
 import { useRef, useEffect, memo } from 'react'
-import { Box } from '@mui/material'
+import { Box, useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import MessageBubble from '../../../shared/ui/MessageBubble'
 import TypingIndicator from '../../../shared/ui/TypingIndicator'
@@ -23,8 +24,13 @@ function extractQuestion(content: string): string {
 }
 
 function ChatThread({ messages, loading, studentName = 'default' }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const parentRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
   const itemCount = messages.length + (loading ? 1 : 0)
+
+  const useVirtual = !isMobile && messages.length > 120
 
   const rowVirtualizer = useVirtualizer({
     count: itemCount,
@@ -35,20 +41,25 @@ function ChatThread({ messages, loading, studentName = 'default' }: Props) {
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
+    if (!useVirtual) {
+      bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+      return
+    }
     if (itemCount > 0) {
       rowVirtualizer.scrollToIndex(itemCount - 1, { align: 'end' })
     }
-  }, [itemCount, rowVirtualizer])
+  }, [itemCount, rowVirtualizer, useVirtual])
 
   // Keep scrolled to bottom during streaming as content grows
   const lastMsg = messages[messages.length - 1]
   const streamingContent = lastMsg?.role === 'assistant' && loading ? lastMsg.content.length : 0
   useEffect(() => {
+    if (!useVirtual) return
     if (streamingContent > 0) {
       // Re-measure the last item then scroll to it
       rowVirtualizer.scrollToIndex(itemCount - 1, { align: 'end' })
     }
-  }, [streamingContent, itemCount, rowVirtualizer])
+  }, [streamingContent, itemCount, rowVirtualizer, useVirtual])
 
   const handleQuizAnswer = (msg: ChatMessage, selectedLetter: string, isCorrect: boolean) => {
     const topic = msg.topics_referenced?.[0] || 'General'
@@ -65,51 +76,75 @@ function ChatThread({ messages, loading, studentName = 'default' }: Props) {
 
   return (
     <Box ref={parentRef} className="h-full overflow-y-auto" sx={{ pb: 2 }}>
-      <Box
-        sx={{
-          height: rowVirtualizer.getTotalSize(),
-          width: '100%',
-          position: 'relative',
-        }}
-      >
-        {items.map((virtualRow) => {
-          const index = virtualRow.index
-          const isTypingRow = loading && index === messages.length
-          const msg = messages[index]
-          return (
-            <Box
-              key={virtualRow.key}
-              data-index={index}
-              ref={rowVirtualizer.measureElement}
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              {isTypingRow && <TypingIndicator />}
-              {msg && (
-                <Box>
-                  <MessageBubble message={msg} isStreaming={loading && index === messages.length - 1 && msg.role === 'assistant' && msg.content.length > 0} />
-                  {msg.quiz_data && msg.quiz_data.options.length > 0 && (
-                    <Box className="px-4 pb-3 max-w-[75%]" sx={{ ml: '44px' }}>
-                      <QuizCard
-                        question={extractQuestion(msg.content)}
-                        options={msg.quiz_data.options}
-                        correctLetter={msg.quiz_data.correct_letter}
-                        topic={msg.topics_referenced?.[0]}
-                        onAnswer={(letter, correct) => handleQuizAnswer(msg, letter, correct)}
-                      />
-                    </Box>
-                  )}
+      {!useVirtual && (
+        <Box className="py-3">
+          {messages.map((msg, i) => (
+            <Box key={i}>
+              <MessageBubble message={msg} isStreaming={loading && i === messages.length - 1 && msg.role === 'assistant' && msg.content.length > 0} />
+              {msg.quiz_data && msg.quiz_data.options.length > 0 && (
+                <Box className="px-4 pb-3 max-w-[75%]" sx={{ ml: '44px' }}>
+                  <QuizCard
+                    question={extractQuestion(msg.content)}
+                    options={msg.quiz_data.options}
+                    correctLetter={msg.quiz_data.correct_letter}
+                    topic={msg.topics_referenced?.[0]}
+                    onAnswer={(letter, correct) => handleQuizAnswer(msg, letter, correct)}
+                  />
                 </Box>
               )}
             </Box>
-          )
-        })}
-      </Box>
+          ))}
+          {loading && <TypingIndicator />}
+          <div ref={bottomRef} />
+        </Box>
+      )}
+      {useVirtual && (
+        <Box
+          sx={{
+            height: rowVirtualizer.getTotalSize(),
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          {items.map((virtualRow) => {
+            const index = virtualRow.index
+            const isTypingRow = loading && index === messages.length
+            const msg = messages[index]
+            return (
+              <Box
+                key={virtualRow.key}
+                data-index={index}
+                ref={rowVirtualizer.measureElement}
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {isTypingRow && <TypingIndicator />}
+                {msg && (
+                  <Box>
+                    <MessageBubble message={msg} isStreaming={loading && index === messages.length - 1 && msg.role === 'assistant' && msg.content.length > 0} />
+                    {msg.quiz_data && msg.quiz_data.options.length > 0 && (
+                      <Box className="px-4 pb-3 max-w-[75%]" sx={{ ml: '44px' }}>
+                        <QuizCard
+                          question={extractQuestion(msg.content)}
+                          options={msg.quiz_data.options}
+                          correctLetter={msg.quiz_data.correct_letter}
+                          topic={msg.topics_referenced?.[0]}
+                          onAnswer={(letter, correct) => handleQuizAnswer(msg, letter, correct)}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            )
+          })}
+        </Box>
+      )}
     </Box>
   )
 }

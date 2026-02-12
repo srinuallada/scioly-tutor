@@ -33,7 +33,12 @@ async def handle_upload(
             results.append({"filename": file.filename, "status": "unsupported", "chunks": 0})
             continue
 
-        save_path = os.path.join(UPLOAD_DIR, file.filename)
+        # Sanitize filename to prevent path traversal attacks
+        safe_name = Path(file.filename).name
+        if not safe_name:
+            results.append({"filename": file.filename, "status": "invalid_filename", "chunks": 0})
+            continue
+        save_path = os.path.join(UPLOAD_DIR, safe_name)
         content = await file.read()
 
         max_bytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024

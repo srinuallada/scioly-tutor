@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
-from app.settings import IMAGES_DIR, GOOGLE_CLIENT_ID, REQUIRE_AUTH
+from app.settings import IMAGES_DIR, GOOGLE_CLIENT_ID, REQUIRE_AUTH, ALLOWED_EMAILS
 
 router = APIRouter()
 
@@ -25,9 +25,15 @@ async def get_image(
         if not jwt:
             raise HTTPException(status_code=401, detail="Missing token")
         try:
-            id_token.verify_oauth2_token(jwt, _request, GOOGLE_CLIENT_ID)
+            claims = id_token.verify_oauth2_token(jwt, _request, GOOGLE_CLIENT_ID)
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
+
+        # Check email whitelist (same as require_auth)
+        if ALLOWED_EMAILS:
+            email = (claims.get("email") or "").lower()
+            if email not in ALLOWED_EMAILS:
+                raise HTTPException(status_code=403, detail="Access denied")
 
     base = IMAGES_DIR.resolve()
     path = (IMAGES_DIR / filename).resolve()
@@ -39,7 +45,7 @@ async def get_image(
     if not path.exists() and not path.suffix:
         for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
             candidate = path.with_suffix(ext)
-            if candidate.exists():
+            if candidate.exists() and str(candidate.resolve()).startswith(str(base)):
                 path = candidate
                 break
 

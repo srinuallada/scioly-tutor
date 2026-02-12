@@ -13,26 +13,27 @@ function AuthImage({ src, alt }: { src: string; alt: string }) {
 
   useEffect(() => {
     let cancelled = false
+    let objectUrl: string | null = null
     const token = localStorage.getItem('google_id_token')
-    console.log('[AuthImage] fetching:', src, 'hasToken:', !!token)
     fetch(src, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((res) => {
-        console.log('[AuthImage] response:', res.status, src)
         if (!res.ok) throw new Error(`${res.status}`)
         return res.blob()
       })
       .then((blob) => {
-        if (!cancelled) setBlobUrl(URL.createObjectURL(blob))
+        if (!cancelled) {
+          objectUrl = URL.createObjectURL(blob)
+          setBlobUrl(objectUrl)
+        }
       })
-      .catch((err) => {
-        console.error('[AuthImage] error:', err.message, src)
+      .catch(() => {
         if (!cancelled) setError(true)
       })
     return () => {
       cancelled = true
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [src])
 
